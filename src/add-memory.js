@@ -1,4 +1,7 @@
-const { SupermemoryClient } = require('./lib/supermemory-client');
+const {
+  SupermemoryClient,
+  PERSONAL_ENTITY_CONTEXT,
+} = require('./lib/supermemory-client');
 const { getContainerTag, getProjectName } = require('./lib/container-tag');
 const { loadSettings, getApiKey } = require('./lib/settings');
 
@@ -29,11 +32,16 @@ async function main() {
 
   try {
     const client = new SupermemoryClient(apiKey, containerTag);
-    const result = await client.addMemory(content, containerTag, {
-      type: 'manual',
-      project: projectName,
-      timestamp: new Date().toISOString(),
-    });
+    const result = await client.addMemory(
+      content,
+      containerTag,
+      {
+        type: 'manual',
+        project: projectName,
+        timestamp: new Date().toISOString(),
+      },
+      { entityContext: PERSONAL_ENTITY_CONTEXT },
+    );
 
     console.log(`Memory saved to project: ${projectName}`);
     console.log(`ID: ${result.id}`);
