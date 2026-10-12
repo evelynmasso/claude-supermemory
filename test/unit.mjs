@@ -33,6 +33,10 @@ const {
 } = require('../plugin/statusline.js');
 
 const HOOKS_DIR = join(process.cwd(), 'plugin', 'hooks');
+const {
+  getEntriesSinceLastCapture,
+  groupEntriesIntoTurns,
+} = require('../plugin/hooks/lib/transcript.js');
 
 function hash16(input) {
   return createHash('sha256').update(input).digest('hex').slice(0, 16);
@@ -403,7 +407,94 @@ describe('session-start hook', () => {
   });
 });
 
+describe('transcript turn boundaries', () => {
+  const prompt = { type: 'user', uuid: 'u1', message: { content: 'Opening prompt' } };
+  const toolUse = {
+    type: 'assistant', uuid: 'a1',
+    message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: {} }] },
+  };
+  const reply = {
+    type: 'assistant', uuid: 'a2',
+    message: { content: [{ type: 'text', text: 'Final reply' }] },
+  };
+
+  test('tool results and non-prompt user entries stay in the current turn', () => {
+    const entries = [prompt, toolUse,
+      { type: 'user', uuid: 't1', message: { content: [
+        { type: 'tool_result', tool_use_id: 't1', content: [{ type: 'text', text: 'Tool output' }] },
+      ] } },
+      { type: 'user', uuid: 'm1', isMeta: true, message: { content: 'Internal metadata' } },
+      { type: 'user', uuid: 'm2', message: { content: '<system-reminder>Internal reminder</system-reminder>' } },
+      reply];
+    const turns = groupEntriesIntoTurns(entries);
+    assert.equal(turns.length, 1);
+    assert.deepEqual(turns[0].allEntries, entries);
+    assert.deepEqual(getEntriesSinceLastCapture(entries, null), entries);
+    assert.deepEqual(getEntriesSinceLastCapture(entries, 'a1'), entries.slice(2));
+  });
+
+  for (const content of ['Next prompt', [
+    { type: 'tool_result', tool_use_id: 't1', content: 'Tool output' },
+    { type: 'text', text: 'Next prompt' },
+  ]]) {
+    test(`a real user prompt starts a new turn (${typeof content}) without history backfill`, () => {
+      const nextPrompt = { type: 'user', uuid: 'u2', message: { content } };
+      const entries = [prompt, toolUse, reply, nextPrompt, { ...reply, uuid: 'a3' }];
+      const turns = groupEntriesIntoTurns(entries);
+      assert.equal(turns.length, 2);
+      assert.deepEqual(turns[0].allEntries, entries.slice(0, 3));
+      assert.deepEqual(getEntriesSinceLastCapture(entries, null), entries.slice(3));
+    });
+  }
+});
+
 describe('capture hook', () => {
+  for (const settings of [{}, { includeTools: ['Read'] }, { signalExtraction: true }]) {
+    test(`first save includes the prompt across multiple tool calls (${JSON.stringify(settings)})`, async (t) => {
+      const { repo, home } = makeRepo(t);
+      mkdirSync(join(home, '.supermemory-claude'), { recursive: true });
+      writeFileSync(join(home, '.supermemory-claude', 'credentials.json'),
+        JSON.stringify({ apiKey: 'sm_test_key_0123456789abcdef' }));
+      writeFileSync(join(home, '.supermemory-claude', 'settings.json'), JSON.stringify(settings));
+      const transcript = join(makeTempDir(t, 'first-save'), 'session.jsonl');
+      const entries = [
+        { type: 'user', uuid: 'u1', timestamp: '2026-10-12T07:00:00Z',
+          message: { content: 'Remember the release date from notes.md for the next deployment.' } },
+        ...['t1', 't2'].flatMap((id) => [
+          { type: 'assistant', uuid: `a-${id}`, message: { content: [
+            { type: 'tool_use', id, name: 'Read', input: { file_path: 'notes.md' } },
+          ] } },
+          { type: 'user', uuid: `u-${id}`, message: { content: [
+            { type: 'tool_result', tool_use_id: id, content: 'Release date: 20 October.' },
+          ] } },
+        ]),
+      ];
+      writeFileSync(transcript, entries.map((entry) => JSON.stringify(entry)).join('\n'));
+      const stub = await startStubServer(t, (record, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ id: 'doc_first', status: 'queued' }));
+      });
+      const env = { HOME: home, USERPROFILE: home, SUPERMEMORY_API_URL: stub.url };
+      const finalReply = 'The notes say the release date is 20 October, with no other timing details.';
+      const input = { session_id: 'first-save', cwd: repo, transcript_path: transcript,
+        last_assistant_message: finalReply };
+      assert.equal((await runHook('capture.js', input, env)).code, 0);
+      assert.equal(stub.requests.length, 1);
+      const { content } = JSON.parse(stub.requests[0].body);
+      assert.match(content, /Remember the release date from notes.md/);
+      assert.ok(content.includes(finalReply));
+      assert.match(content, /<\|turn_start\|>2026-10-12T07:00:00Z/);
+      assert.equal(content.includes('assistant:tool_result'), Boolean(settings.includeTools));
+
+      entries.push({ type: 'assistant', uuid: 'a-final', message: {
+        content: [{ type: 'text', text: finalReply }],
+      } });
+      writeFileSync(transcript, entries.map((entry) => JSON.stringify(entry)).join('\n'));
+      await runHook('capture.js', input, env);
+      assert.equal(stub.requests.length, 1);
+    });
+  }
+
   test('saves the transcript delta with scope metadata and entity context', async (t) => {
     const { repo, home } = makeRepo(t);
     mkdirSync(join(home, '.supermemory-claude'), { recursive: true });
