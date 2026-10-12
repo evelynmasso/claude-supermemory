@@ -95,49 +95,6 @@ The hooks are tolerant: if Supermemory is unreachable, the API key is missing, o
 anything else fails, they exit cleanly without breaking your Claude Code session.
 A capture that fails is reported the next time a session starts.
 
-### API v5 and existing installations
-
-Hosted REST hooks use the official `supermemory` 5.0.1 SDK. SessionStart reads a
-profile; prompt recall makes a separate memory search with explicit mode
-`memories`, threshold `0.55`, limit `5`, no reranking, and no query rewriting.
-The client still enforces the 0.55 floor and top-five cap and renders 300-character
-excerpts. Profiles read `{id, memory}` entries from static and dynamic sections;
-custom buckets don't change the existing UI. Backend score/ranking parity and
-historical data availability haven't been verified against a live service.
-Hosted use requires no API-version setting.
-
-`namespace` is the canonical project-scope name. Precedence is project
-`namespace`, project `repoContainerTag`, `SUPERMEMORY_NAMESPACE`,
-`SUPERMEMORY_REPO_TAG`, then the unchanged generated identity. Old overrides
-remain valid: to rename a setting, copy its **exact value**, not a new identifier.
-The migration guide says existing container tags are valid namespace identifiers;
-the plugin never renames, merges, deletes, or backfills backend data. Changing a
-scope value selects another space, rather than migrating existing memories.
-Selected v5 calls validate that scope is 1–100 letters, digits, underscores,
-hyphens, or colons before sending any request. Invalid scope diagnostics name
-the relevant configuration/environment keys without echoing the value; config
-and capture cursors are not rewritten. Historical dot-containing capture scopes
-are covered under [advanced self-hosted compatibility](#advanced-self-hosted-compatibility).
-Credentials and key-source precedence are unchanged: `SUPERMEMORY_CC_API_KEY`,
-project `apiKey`, then `~/.supermemory-claude/credentials.json`.
-
-Capture uses POST with the existing session ID as v5 `id`, which is documented to
-append/diff rather than replace earlier content; extraction instructions become
-`supportingContext` and metadata is retained. It explicitly uses the memory
-pipeline and dynamic processing, which can take minutes to appear in recall.
-SDK automatic retries are disabled for every call. Capture keeps its 25-second
-budget; startup and recall keep their 3/4-second budgets. Only a valid acceptance
-response advances capture's existing atomic JSON/pending/txt cursors. A timeout
-can still mean the server accepted a write without the client receiving its
-acknowledgment; stable IDs don't prove exactly-once billing or processing.
-Original txt recovery, settings, credentials, and last-session files remain
-readable without destructive conversion. Signal/tool/minimum-content behavior
-and the recall mod are unchanged.
-
-MCP is a separate tool protocol: its `containerTag` arguments and custom
-`SUPERMEMORY_MCP_URL` are intentionally retained. Indexing and the context-gatherer
-continue using those MCP tools, not REST document or namespace-management calls.
-
 ### Shared Agents memory
 
 Claude Code, Codex, and OpenCode all generate the same container tag for a given
@@ -199,6 +156,9 @@ or the compatible `repoContainerTag` / `SUPERMEMORY_REPO_TAG` settings.
 
 Per-repo overrides, created manually or via the settings your team shares:
 
+API key precedence is `SUPERMEMORY_CC_API_KEY`, project `apiKey`, then
+`~/.supermemory-claude/credentials.json`.
+
 ```json
 {
   "apiKey": "sm_...",
@@ -225,6 +185,13 @@ setting takes precedence; `legacy` is also an explicit rollback option for a
 server that still supports v3/v4. Invalid values fail closed for memory operations.
 There is no automatic version fallback after a failed request and no fallback to
 the hosted API. REST, MCP, and browser-auth URLs remain separate.
+
+Scope precedence is project `namespace`, project `repoContainerTag`,
+`SUPERMEMORY_NAMESPACE`, `SUPERMEMORY_REPO_TAG`, then the generated identity.
+Keep an existing override's exact value when renaming its setting: changing the
+value selects another space, not a data migration. V5 scopes allow 1–100 letters,
+digits, underscores, hyphens, or colons; invalid scopes are rejected before any
+request without rewriting config or capture cursors.
 
 The published legacy profile/search contracts already have the v5 namespace
 restriction, but legacy ingestion describes dot-containing tags. For such
