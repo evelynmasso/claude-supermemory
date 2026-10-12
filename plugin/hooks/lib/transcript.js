@@ -345,7 +345,7 @@ function groupEntriesIntoTurns(entries) {
     const entry = entries[i];
 
     if (entry.type === 'user') {
-      if (currentTurn.assistantEntries.length > 0) {
+      if (hasTextContent(entry) && currentTurn.assistantEntries.length > 0) {
         turns.push(currentTurn);
         currentTurn = { userEntries: [], assistantEntries: [], allEntries: [] };
       }

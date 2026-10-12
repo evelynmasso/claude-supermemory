@@ -235,6 +235,14 @@ to select another space. Conversation turns are saved when a session ends.
 
 ## Privacy
 
+Automatic capture sends new conversation content to Supermemory, including tool
+content when configured. Before saving, an offline filter replaces common
+credential-shaped values (provider tokens, credential assignments, private keys,
+Bearer tokens, and URL credentials) with explicit `[REDACTED:…]` markers while
+keeping surrounding context. It cannot detect every secret. Existing stored
+memories and local transcripts are not rewritten; explicit MCP tool calls and
+recall queries are not filtered by this capture-only protection.
+
 For information about how Supermemory collects, uses, and retains data, see the
 [Supermemory Privacy Policy](https://supermemory.ai/privacy/).
 
