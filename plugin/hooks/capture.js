@@ -1,4 +1,5 @@
 const { addMemory, AGENT_ENTITY_CONTEXT } = require('./lib/api');
+const { redactSecrets } = require('./lib/redact');
 const {
   getContainerTag,
   getProjectIdentity,
@@ -87,7 +88,7 @@ async function main() {
     const result = await addMemory(
       baseUrl,
       apiKey,
-      delta.formatted,
+      redactSecrets(delta.formatted),
       containerTag,
       {
         type: 'session_turn',
@@ -117,7 +118,14 @@ async function main() {
     debugLog(settings, 'Session turn saved', { length: delta.formatted.length });
     writeOutput({ continue: true });
   } catch (err) {
-    const friendly = getUserFriendlyError(err);
+    const status = err?.status ?? err?.statusCode;
+    const friendly = redactSecrets(
+      getUserFriendlyError(
+        typeof status === 'number'
+          ? { status, message: `Supermemory API returned HTTP ${status}.` }
+          : err,
+      ),
+    );
     debugLog(settings, 'Capture error', { error: friendly });
     console.error(`Supermemory: ${friendly}`);
     writeCaptureNotice(friendly);
@@ -127,6 +135,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`Supermemory fatal: ${err.message}`);
+  console.error(`Supermemory fatal: ${redactSecrets(err.message)}`);
   process.exit(1);
 });
