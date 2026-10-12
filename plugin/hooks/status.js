@@ -46,14 +46,19 @@ async function main() {
       }),
     );
   } catch (err) {
+    const httpStatus = err?.status ?? err?.statusCode ?? null;
     console.log(
       JSON.stringify({
+        authenticated: httpStatus === 401 ? false : null,
         keySource,
-        namespace,
+        namespace: err?.code === 'INVALID_NAMESPACE' ? null : namespace,
         apiOrigin,
         apiVersion,
-        httpStatus: err?.status ?? err?.statusCode ?? null,
-        error: getUserFriendlyError(err),
+        httpStatus,
+        error:
+          httpStatus === 404
+            ? 'Endpoint responded; profile absent or route unsupported. Authentication is unknown.'
+            : getUserFriendlyError(err),
       }),
     );
   }

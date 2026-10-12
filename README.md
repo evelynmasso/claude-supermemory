@@ -120,6 +120,15 @@ remain valid: to rename a setting, copy its **exact value**, not a new identifie
 The migration guide says existing container tags are valid namespace identifiers;
 the plugin never renames, merges, deletes, or backfills backend data. Changing a
 scope value selects another space, rather than migrating existing memories.
+Selected v5 calls validate that scope is 1–100 letters, digits, underscores,
+hyphens, or colons before sending any request. Invalid scope diagnostics name
+the relevant configuration/environment keys without echoing the value; config
+and capture cursors are not rewritten. The published legacy profile/search
+contracts already have that same restriction, but legacy ingestion describes
+dot-containing tags. For such historical capture-only scopes, explicitly select
+`legacy` only if the server still supports it; never rename the value to make it
+fit v5. Historical hosted ingestion acceptance and data availability remain
+unverified. There is no automatic switch or failed-write retry across protocols.
 Credentials and key-source precedence are unchanged: `SUPERMEMORY_CC_API_KEY`,
 project `apiKey`, then `~/.supermemory-claude/credentials.json`.
 

@@ -52,8 +52,21 @@ async function post(
   return response.json();
 }
 
-function useV5(baseUrl, options) {
-  return resolveApiVersion(baseUrl, options.apiVersion) === 'v5';
+function useV5(baseUrl, options, namespace) {
+  if (resolveApiVersion(baseUrl, options.apiVersion) !== 'v5') return false;
+  if (
+    typeof namespace !== 'string' ||
+    namespace.length > 100 ||
+    !/^[a-zA-Z0-9_:-]+$/.test(namespace)
+  ) {
+    throw Object.assign(
+      new Error(
+        'Invalid Supermemory v5 namespace: use 1–100 letters, digits, underscores, hyphens, or colons. Check project namespace/repoContainerTag or SUPERMEMORY_NAMESPACE/SUPERMEMORY_REPO_TAG. Preserve the original scope value; historical dot-containing capture scopes require explicit apiVersion="legacy" or SUPERMEMORY_API_VERSION=legacy only if your server still supports legacy. No request was sent.',
+      ),
+      { code: 'INVALID_NAMESPACE' },
+    );
+  }
+  return true;
 }
 
 function sdkClient(baseUrl, apiKey, options) {
@@ -77,7 +90,7 @@ function sdkOptions(options) {
 }
 
 async function getProfile(baseUrl, apiKey, namespace, query, options = {}) {
-  if (!useV5(baseUrl, options)) {
+  if (!useV5(baseUrl, options, namespace)) {
     return post(
       baseUrl,
       apiKey,
@@ -101,7 +114,7 @@ async function getProfile(baseUrl, apiKey, namespace, query, options = {}) {
 }
 
 async function searchMemories(baseUrl, apiKey, namespace, query, options = {}) {
-  if (!useV5(baseUrl, options)) {
+  if (!useV5(baseUrl, options, namespace)) {
     const response = await getProfile(
       baseUrl,
       apiKey,
@@ -137,7 +150,7 @@ async function addMemory(
   metadata,
   options = {},
 ) {
-  if (useV5(baseUrl, options)) {
+  if (useV5(baseUrl, options, namespace)) {
     const result = await sdkClient(baseUrl, apiKey, options).add(
       namespace,
       {
