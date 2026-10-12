@@ -1,4 +1,4 @@
-const CREDENTIAL_ASSIGNMENT = /\b((?:[A-Z][A-Z0-9]*_)*(?:API_?KEY|ACCESS_?KEY_?ID|SECRET_?ACCESS_?KEY|ACCESS_?TOKEN|AUTH_?TOKEN|TOKEN|PASSWORD|PASSWD|SECRET|CLIENT_?SECRET|PRIVATE_?KEY))(["']?\s*[:=]\s*)("[^"\r\n]*"|'[^'\r\n]*'|[^\s,;"'`<>]+)/gi;
+const CREDENTIAL_ASSIGNMENT = /\b((?:[A-Z][A-Z0-9]*_)*(?:API_?KEY|ACCESS_?KEY_?ID|SECRET_?ACCESS_?KEY|ACCESS_?TOKEN|AUTH_?TOKEN|TOKEN|PASSWORD|PASSWD|SECRET|CLIENT_?SECRET|PRIVATE_?KEY))(["']?\s*[:=]\s*)("(?:(?!<\|end\|>)[^"])*"|'(?:(?!<\|end\|>)[^'])*'|[^\s,;"'`<>]+)/gi;
 
 function isPlaceholder(value) {
   return /^(?:\[REDACTED(?::[^\]]+)?\]|<[^>]+>|\$\{[^}]+\}|\{\{[^}]+\}\}|\$[A-Z_][A-Z0-9_]*|(?:your|example|placeholder|replace|insert|changeme|redacted)(?:[-_ ].*)?|password|token|api[-_]key|secret|dummy|\*+|\.+)$/i.test(value);
@@ -9,7 +9,7 @@ function redactSecrets(text) {
 
   return text
     .replace(
-      /-----BEGIN ((?:[A-Z0-9]+ )*PRIVATE KEY)-----[\s\S]*?(?:-----END \1-----|(?=<\|end\|>)|$)/g,
+      /-----BEGIN ((?:[A-Z0-9]+ )*PRIVATE KEY)-----[\s\S]*?(?:-----END \1-----|(?="(?:\s+[A-Za-z_][A-Za-z0-9_]*="|<\|end\|>))|(?=<\|end\|>)|$)/g,
       '[REDACTED:private_key]',
     )
     .replace(
