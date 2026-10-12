@@ -13,11 +13,11 @@ function redactSecrets(text) {
       '[REDACTED:private_key]',
     )
     .replace(
-      /\b[a-z][a-z0-9+.-]*:\/\/([^\s/<>"'`]*:[^\s/<>"'`]*?)@/gi,
-      (match, credentials) =>
+      /(\b[a-z][a-z0-9+.-]*:\/\/)([^\s/<>"'`]*:[^\s/<>"'`]*?)@/gi,
+      (match, scheme, credentials) =>
         isPlaceholder(credentials.split(':').slice(1).join(':'))
           ? match
-          : match.replace(credentials, '[REDACTED:url_credentials]'),
+          : `${scheme}[REDACTED:url_credentials]@`,
     )
     .replace(CREDENTIAL_ASSIGNMENT, (match, name, separator, raw) => {
       const quote = raw.startsWith('"') || raw.startsWith("'") ? raw[0] : '';
