@@ -1,4 +1,5 @@
 const { addMemory, AGENT_ENTITY_CONTEXT } = require('./lib/api');
+const { redactSecrets } = require('./lib/redact');
 const {
   getContainerTag,
   getProjectIdentity,
@@ -20,8 +21,16 @@ const {
 } = require('./lib/transcript');
 const { getUserFriendlyError } = require('./lib/error-helpers');
 const { saveLastSession } = require('./lib/last-session');
-const { readState, writeState } = require('./lib/statusline-state');
+const {
+  clearCaptureNotice,
+  readState,
+  writeCaptureNotice,
+  writeState,
+} = require('./lib/session-state');
 
+const CAPTURE_TIMEOUT_MS = 25000;
+
+// Stop allows 30s; this write outlives the 3s default without slowing SessionStart.
 async function main() {
   const settings = loadSettings();
   let sessionId;
@@ -47,10 +56,25 @@ async function main() {
     }
 
     const delta = getSignalConfig(cwd).enabled
-      ? formatSignalEntries(transcriptPath, sessionId, cwd)
-      : formatNewEntries(transcriptPath, sessionId, cwd);
+      ? formatSignalEntries(
+          transcriptPath,
+          sessionId,
+          cwd,
+          input.last_assistant_message,
+        )
+      : formatNewEntries(
+          transcriptPath,
+          sessionId,
+          cwd,
+          input.last_assistant_message,
+        );
 
+    const captured = readState(sessionId, 'capture')?.count || 0;
     if (!delta) {
+      writeState(sessionId, 'capture', {
+        status: 'no_content',
+        count: captured,
+      });
       debugLog(settings, 'No new content to save');
       writeOutput({ continue: true });
       return;
@@ -59,13 +83,12 @@ async function main() {
     const baseUrl = getBaseUrl(cwd, projectConfig);
     const containerTag = getContainerTag(cwd);
 
-    const captured = readState(sessionId).capture?.count || 0;
     writeState(sessionId, 'capture', { status: 'saving', count: captured });
 
     const result = await addMemory(
       baseUrl,
       apiKey,
-      delta.formatted,
+      redactSecrets(delta.formatted),
       containerTag,
       {
         type: 'session_turn',
@@ -75,11 +98,16 @@ async function main() {
         sm_capture_mode: 'automatic',
         timestamp: new Date().toISOString(),
       },
-      { customId: sessionId, entityContext: AGENT_ENTITY_CONTEXT },
+      {
+        customId: sessionId,
+        entityContext: AGENT_ENTITY_CONTEXT,
+        timeoutMs: CAPTURE_TIMEOUT_MS,
+      },
     );
 
-    setLastCapturedUuid(sessionId, delta.lastUuid);
+    setLastCapturedUuid(sessionId, delta.lastUuid, delta.pendingReplies);
     writeState(sessionId, 'capture', { status: 'saved', count: captured + 1 });
+    clearCaptureNotice();
 
     if (result?.id) {
       try {
@@ -90,15 +118,23 @@ async function main() {
     debugLog(settings, 'Session turn saved', { length: delta.formatted.length });
     writeOutput({ continue: true });
   } catch (err) {
-    const friendly = getUserFriendlyError(err);
+    const status = err?.status ?? err?.statusCode;
+    const friendly = redactSecrets(
+      getUserFriendlyError(
+        typeof status === 'number'
+          ? { status, message: `Supermemory API returned HTTP ${status}.` }
+          : err,
+      ),
+    );
     debugLog(settings, 'Capture error', { error: friendly });
     console.error(`Supermemory: ${friendly}`);
+    writeCaptureNotice(friendly);
     writeState(sessionId, 'capture', { status: 'error' });
     writeOutput({ continue: true });
   }
 }
 
 main().catch((err) => {
-  console.error(`Supermemory fatal: ${err.message}`);
+  console.error(`Supermemory fatal: ${redactSecrets(err.message)}`);
   process.exit(1);
 });
