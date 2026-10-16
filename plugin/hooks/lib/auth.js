@@ -13,6 +13,19 @@ const authErrorHtml = fs.readFileSync(
   path.join(__dirname, '../templates/auth-error.html'),
   'utf-8',
 );
+// The browser only ever sees these fixed strings; error details stay in the
+// terminal so a response body can never leak into the page.
+function renderAuthError(error) {
+  const denied = error?.code === 'access_denied';
+  return authErrorHtml
+    .replace('{{title}}', denied ? 'Authorization Denied' : 'Connection Failed')
+    .replace(
+      '{{message}}',
+      denied
+        ? 'You declined access, so Supermemory was not connected. Return to Claude Code and run the login again to retry.'
+        : 'Supermemory could not finish signing you in. Return to Claude Code and run the login again.',
+    );
+}
 const SETTINGS_DIR = path.join(os.homedir(), '.supermemory-claude');
 const CREDENTIALS_FILE = path.join(SETTINGS_DIR, 'credentials.json');
 const CLIENT_FILE = path.join(SETTINGS_DIR, 'oauth-client.json');
@@ -450,7 +463,9 @@ async function startAuthFlow(
           exchanging = true;
           try {
             if (url.searchParams.has('error'))
-              throw new Error('Authorization was denied.');
+              throw Object.assign(new Error('Authorization was denied.'), {
+                code: 'access_denied',
+              });
             const code = url.searchParams.get('code');
             if (!code) throw new Error('Authorization code missing.');
             const token = await exchangeToken(
@@ -469,7 +484,7 @@ async function startAuthFlow(
           } catch (error) {
             res
               .writeHead(400, { 'Content-Type': 'text/html' })
-              .end(authErrorHtml);
+              .end(renderAuthError(error));
             if (error.code === 'invalid_client' && !controller.signal.aborted)
               fs.rmSync(CLIENT_FILE, { force: true });
             reject(error);
