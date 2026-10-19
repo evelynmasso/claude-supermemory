@@ -61,7 +61,7 @@ function useV5(baseUrl, options, namespace) {
   ) {
     throw Object.assign(
       new Error(
-        'Invalid Supermemory v5 namespace: use 1–100 letters, digits, underscores, hyphens, or colons. Check project namespace/repoContainerTag or SUPERMEMORY_REPO_TAG. Preserve the original scope value; historical dot-containing capture scopes require explicit apiVersion="legacy" or SUPERMEMORY_API_VERSION=legacy only if your server still supports legacy. No request was sent.',
+        'Rename project namespace/repoContainerTag or SUPERMEMORY_REPO_TAG: scopes allow only 1–100 letters, digits, underscores, hyphens, or colons, and a new value starts a new memory space. No request was sent.',
       ),
       { code: 'INVALID_NAMESPACE' },
     );

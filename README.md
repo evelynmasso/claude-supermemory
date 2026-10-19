@@ -192,13 +192,11 @@ value selects another space, not a data migration. V5 scopes allow 1–100 lette
 digits, underscores, hyphens, or colons; invalid scopes are rejected before any
 request without rewriting config or capture cursors.
 
-The published legacy profile/search contracts already have the v5 namespace
-restriction, but legacy ingestion describes dot-containing tags. For such
-historical capture-only scopes, explicitly set `SUPERMEMORY_API_VERSION=legacy`
-or project `apiVersion: "legacy"` only if the server still supports it; retain the
-exact scope value, never rename it to make it fit v5. Historical hosted ingestion
-acceptance and data availability remain unverified. There is no automatic switch
-or failed-write retry across protocols.
+Hosted Supermemory applies the same rule to legacy endpoints, so a scope with a
+dot, slash, or space must be renamed; the new value starts a new memory space.
+A self-hosted server that still accepts such a scope through v3/v4 can keep it with
+`SUPERMEMORY_API_VERSION=legacy` or project `apiVersion: "legacy"`. There is no
+automatic switch or failed-write retry across protocols.
 
 ## Commands
 
