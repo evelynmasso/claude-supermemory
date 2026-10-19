@@ -24,7 +24,7 @@ jobs:
         run: npx biome ci .
 
       - name: Verify bundled SDK
-        run: npm run build:sdk && git diff --exit-code -- plugin/hooks/vendor/supermemory.cjs
+        run: npm run build:sdk && git diff --exit-code -- plugin/hooks/vendor/ && test -z "$(git status --porcelain -- plugin/hooks/vendor/)"
 
       - name: Test
         run: npm test
