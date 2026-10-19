@@ -116,7 +116,6 @@ function getNamespace(cwd) {
   return (
     projectConfig?.namespace ||
     projectConfig?.repoContainerTag ||
-    process.env.SUPERMEMORY_NAMESPACE ||
     process.env.SUPERMEMORY_REPO_TAG ||
     getGeneratedContainerTag(cwd)
   );

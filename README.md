@@ -112,7 +112,7 @@ path instead of the remote identity.
 
 Unlike Codex, this plugin does not read older per-tool legacy containers
 (`codex_user_*`, `opencode_project_*`, and similar); it only ever uses the single
-unified identity above, overridden via `namespace` / `SUPERMEMORY_NAMESPACE`
+unified identity above, overridden via the project `namespace` setting
 or the compatible `repoContainerTag` / `SUPERMEMORY_REPO_TAG` settings.
 
 ## Configuration
@@ -125,8 +125,7 @@ or the compatible `repoContainerTag` / `SUPERMEMORY_REPO_TAG` settings.
 | `SUPERMEMORY_API_URL` | Override the Supermemory REST base URL; custom URLs default to legacy compatibility. |
 | `SUPERMEMORY_MCP_URL` | Override the hosted MCP endpoint (default `https://mcp.supermemory.ai/mcp`). |
 | `SUPERMEMORY_AUTH_URL` | Override the browser-auth base URL. |
-| `SUPERMEMORY_REPO_TAG` | Legacy project-scope override; used when no project scope or canonical environment override is set. |
-| `SUPERMEMORY_NAMESPACE` | Canonical namespace override; project scope settings take precedence. |
+| `SUPERMEMORY_REPO_TAG` | Project-scope override; used when no project scope setting is set. |
 | `SUPERMEMORY_ISOLATE_WORKTREES` | Set to `true` to key the project container on the worktree path instead of the Git remote. |
 | `SUPERMEMORY_DEBUG` | Set to `true` to enable debug logging. |
 
@@ -187,7 +186,7 @@ There is no automatic version fallback after a failed request and no fallback to
 the hosted API. REST, MCP, and browser-auth URLs remain separate.
 
 Scope precedence is project `namespace`, project `repoContainerTag`,
-`SUPERMEMORY_NAMESPACE`, `SUPERMEMORY_REPO_TAG`, then the generated identity.
+`SUPERMEMORY_REPO_TAG`, then the generated identity.
 Keep an existing override's exact value when renaming its setting: changing the
 value selects another space, not a data migration. V5 scopes allow 1–100 letters,
 digits, underscores, hyphens, or colons; invalid scopes are rejected before any
