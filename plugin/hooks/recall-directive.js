@@ -256,7 +256,8 @@ async function main() {
       err?.name === 'TimeoutError' ||
       err?.name === 'AbortError' ||
       err?.name === 'SupermemoryTimeoutError' ||
-      err?.cause?.name === 'TimeoutError'
+      err?.cause?.name === 'TimeoutError' ||
+      err?.cause?.name === 'AbortError'
     ) {
       writeOutput({ continue: true, suppressOutput: true });
       return;
