@@ -33,6 +33,7 @@ const LOCK_FILE = path.join(SETTINGS_DIR, 'auth.lock');
 const AUTH_PORT = 19876;
 const AUTH_TIMEOUT = 25000;
 const REFRESH_TIMEOUT = 3000;
+const REFRESH_REQUEST_TIMEOUT = 10000;
 const REFRESH_SKEW = 60000;
 const REDIRECT_URI = `http://127.0.0.1:${AUTH_PORT}/callback`;
 
@@ -320,13 +321,15 @@ function authRequired() {
   return Object.assign(new Error('AUTH_REQUIRED'), { code: 'AUTH_REQUIRED' });
 }
 
-async function getAccessToken(config, timeoutMs = REFRESH_TIMEOUT) {
-  const saved = loadCredentials();
-  if (saved?.type !== 'oauth' || !sameConfig(saved, config))
-    throw authRequired();
-  if (saved.accessToken && saved.expiresAt > Date.now() + REFRESH_SKEW)
-    return saved.accessToken;
-  return withAuthLock(async (remaining) => {
+// Rotates the refresh token. The request always runs to completion and saves
+// the replacement, whatever the caller's deadline: aborting it mid-flight would
+// leave the server holding a rotated refresh token we never stored, and the next
+// refresh would fail with invalid_grant and sign the user out.
+let pendingRefresh = null;
+
+function refreshCredentials(config) {
+  if (pendingRefresh) return pendingRefresh;
+  pendingRefresh = withAuthLock(async (remaining) => {
     const credentials = loadCredentials();
     if (credentials?.type !== 'oauth' || !sameConfig(credentials, config))
       throw authRequired();
@@ -358,7 +361,45 @@ async function getAccessToken(config, timeoutMs = REFRESH_TIMEOUT) {
       }
       throw error;
     }
-  }, timeoutMs);
+  }, REFRESH_REQUEST_TIMEOUT).finally(() => {
+    pendingRefresh = null;
+  });
+  // Callers may stop waiting before the refresh settles.
+  pendingRefresh.catch(() => {});
+  return pendingRefresh;
+}
+
+// Bounds only how long the caller waits; the refresh itself keeps running.
+function waitFor(promise, timeoutMs) {
+  let timer;
+  const expired = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        Object.assign(
+          new Error('Supermemory token refresh is still in progress.'),
+          { code: 'AUTH_PENDING', name: 'TimeoutError' },
+        ),
+      );
+    }, timeoutMs);
+  });
+  return Promise.race([promise, expired]).finally(() => clearTimeout(timer));
+}
+
+async function getAccessToken(config, timeoutMs = REFRESH_TIMEOUT) {
+  const saved = loadCredentials();
+  if (saved?.type !== 'oauth' || !sameConfig(saved, config))
+    throw authRequired();
+  if (saved.accessToken && saved.expiresAt > Date.now() + REFRESH_SKEW)
+    return saved.accessToken;
+  return waitFor(refreshCredentials(config), timeoutMs);
+}
+
+// Resolves once any in-flight refresh has saved or failed, so a process that
+// exits explicitly can let the rotated tokens land first.
+async function settleAuth() {
+  while (pendingRefresh) {
+    await pendingRefresh.catch(() => {});
+  }
 }
 
 async function clearCredentials() {
@@ -523,6 +564,7 @@ module.exports = {
   clearCredentials,
   getOAuthConfig,
   getAccessToken,
+  settleAuth,
   startAuthFlow,
   openUrl,
 };

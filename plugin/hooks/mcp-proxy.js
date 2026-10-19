@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const readline = require('node:readline');
 const { getContainerTag } = require('./lib/container-tag');
+const { settleAuth } = require('./lib/auth');
 const { getAuthToken, getMcpUrl } = require('./lib/settings');
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -148,7 +149,8 @@ async function main() {
   });
 
   rl.on('close', () => {
-    queue.then(() => process.exit(0));
+    // Let a refresh that is still rotating tokens save them before exiting.
+    queue.then(settleAuth).then(() => process.exit(0));
   });
 }
 
