@@ -41,7 +41,10 @@ function loadSettings() {
   const settings = { ...DEFAULT_SETTINGS };
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
-      Object.assign(settings, JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')));
+      Object.assign(
+        settings,
+        JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')),
+      );
     }
   } catch (err) {
     console.error(`Settings: Failed to load ${SETTINGS_FILE}: ${err.message}`);
@@ -113,6 +116,32 @@ function getMcpUrl(cwd, projectConfig) {
   throw new Error('Set SUPERMEMORY_MCP_URL for a custom Supermemory backend.');
 }
 
+function resolveApiVersion(baseUrl, configured) {
+  if (configured !== undefined && configured !== '') {
+    if (configured !== 'v5' && configured !== 'legacy') {
+      throw new Error('Invalid apiVersion: expected "v5" or "legacy"');
+    }
+    return configured;
+  }
+  const url = new URL(baseUrl);
+  const hosted =
+    url.origin === BASE_URL &&
+    !url.pathname.replace(/\/+$/, '') &&
+    !url.search &&
+    !url.hash &&
+    !url.username &&
+    !url.password;
+  return hosted ? 'v5' : 'legacy';
+}
+
+function getApiVersion(cwd, projectConfig) {
+  projectConfig = projectConfig || loadProjectConfig(cwd || process.cwd());
+  return resolveApiVersion(
+    getBaseUrl(cwd, projectConfig),
+    process.env.SUPERMEMORY_API_VERSION || projectConfig?.apiVersion,
+  );
+}
+
 function debugLog(settings, message, data) {
   if (settings.debug) {
     const timestamp = new Date().toISOString();
@@ -169,7 +198,8 @@ function getRecallConfig(cwd) {
   const settings = loadSettings();
   const projectConfig = loadProjectConfig(cwd || process.cwd());
   return {
-    directive: projectConfig?.recallDirective || settings.recallDirective || null,
+    directive:
+      projectConfig?.recallDirective || settings.recallDirective || null,
   };
 }
 
@@ -181,6 +211,8 @@ module.exports = {
   getAuthToken,
   getBaseUrl,
   getMcpUrl,
+  getApiVersion,
+  resolveApiVersion,
   debugLog,
   getIncludeTools,
   shouldIncludeTool,
