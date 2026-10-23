@@ -29,7 +29,7 @@ const { readStdin, writeOutput } = require('./lib/stdin');
 // to spend a tool call. A configured recallDirective restores advisory mode.
 const MIN_PROMPT_LENGTH = 12;
 const MAX_QUERY_LENGTH = 500;
-const MAX_RESULTS = 5;
+const MAX_RESULTS = 15;
 const MAX_RESULT_CHARS = 300;
 const MIN_SIMILARITY = 0.55;
 const SEARCH_TIMEOUT_MS = 4000;
@@ -174,11 +174,18 @@ async function main() {
       },
     );
 
+    const batchHashes = new Set();
     const results = (response || [])
       .filter((r) => resultText(r))
       .filter(
         (r) => !Number.isFinite(r.similarity) || r.similarity >= MIN_SIMILARITY,
       )
+      .filter((r) => {
+        const hash = hashText(resultText(r));
+        if (batchHashes.has(hash)) return false;
+        batchHashes.add(hash);
+        return true;
+      })
       .slice(0, MAX_RESULTS);
 
     const sessionDir = getSessionDir(input.session_id);
