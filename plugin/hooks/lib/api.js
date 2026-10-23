@@ -130,7 +130,7 @@ async function searchMemories(baseUrl, apiKey, namespace, query, options = {}) {
       query,
       searchMode: 'memories',
       threshold: 0.55,
-      limit: 5,
+      limit: 15,
       rerank: 'none',
       rewriteQuery: false,
     },

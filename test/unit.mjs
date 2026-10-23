@@ -285,6 +285,39 @@ describe('recall-directive hook', () => {
     assert.equal(state.search.memories, 3);
   });
 
+  test('drops duplicate hits and injects up to 15 memories', async (t) => {
+    const { repo, home } = makeRepo(t);
+    mkdirSync(join(home, '.supermemory-claude'), { recursive: true });
+    writeFileSync(
+      join(home, '.supermemory-claude', 'credentials.json'),
+      JSON.stringify({ apiKey: 'sm_test_key_0123456789abcdef' }),
+    );
+    const hits = [
+      { memory: 'Chose Drizzle over Prisma', similarity: 0.9 },
+      { memory: '  Chose Drizzle   over Prisma ', similarity: 0.89 },
+      ...Array.from({ length: 20 }, (_, i) => ({
+        memory: `Distinct fact number ${i}`,
+        similarity: 0.8,
+      })),
+    ];
+    const stub = await startStubServer(t, (record, res) => {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ searchResults: { results: hits } }));
+    });
+    const { stdout } = await runHook(
+      'recall-directive.js',
+      { session_id: 's-batch', cwd: repo, prompt: 'continue the database work' },
+      { HOME: home, USERPROFILE: home, SUPERMEMORY_API_URL: stub.url },
+    );
+    const output = JSON.parse(stdout);
+    const context = output.hookSpecificOutput.additionalContext;
+    assert.equal(context.match(/Chose Drizzle over Prisma/g).length, 1);
+    assert.equal(context.match(/^- ◪ /gm).length, 15);
+    assert.match(context, /Distinct fact number 13/);
+    assert.doesNotMatch(context, /Distinct fact number 14/);
+    assert.match(plain(output.systemMessage), /recalled 15 memories/);
+  });
+
   test('a configured recallDirective restores advisory mode verbatim', async (t) => {
     const { repo, git, home } = makeRepo(t);
     const configDir = join(git(['rev-parse', '--show-toplevel']), '.claude', '.supermemory-claude');
